@@ -1,0 +1,294 @@
+<!doctype html>
+<html lang="tr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>QRadar Rule Analyzer</title>
+    <script type="module" crossorigin src="/assets/index-CK_cQm7V.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-Co9va6AJ.css">
+    <style>
+      .qra-overlay {
+        display: none; position: fixed; inset: 0;
+        background: rgba(0,0,0,0.75); z-index: 9999;
+        align-items: center; justify-content: center;
+      }
+      .qra-overlay.open { display: flex; }
+      .qra-modal {
+        background: #0f172a; border: 1px solid #334155;
+        border-radius: 12px; width: 92%; max-width: 960px;
+        max-height: 82vh; display: flex; flex-direction: column;
+        font-family: ui-sans-serif, system-ui, sans-serif;
+        box-shadow: 0 25px 60px rgba(0,0,0,0.6);
+      }
+      .qra-modal-header {
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 14px 22px; border-bottom: 1px solid #334155; flex-shrink: 0;
+      }
+      .qra-modal-header h2 { margin:0; color:#f1f5f9; font-size:15px; font-weight:700; }
+      .qra-close {
+        background:#334155; border:none; color:#94a3b8;
+        width:30px; height:30px; border-radius:6px;
+        cursor:pointer; font-size:16px; line-height:30px; text-align:center;
+      }
+      .qra-close:hover { background:#475569; color:#f1f5f9; }
+      .qra-toolbar {
+        padding: 10px 22px; border-bottom: 1px solid #1e293b;
+        display: flex; gap: 8px; flex-wrap: wrap; flex-shrink: 0;
+      }
+      .qra-fbtn {
+        padding: 4px 14px; border-radius: 9999px;
+        border: 1px solid #334155; background: #1e293b;
+        color: #94a3b8; font-size: 12px; font-weight: 600; cursor: pointer;
+      }
+      .qra-fbtn:hover { background:#334155; color:#f1f5f9; }
+      .qra-fbtn.active { border-color: transparent; }
+      .qra-fbtn.fa.active    { background:#475569; color:#fff; }
+      .qra-fbtn.fc.active    { background:#7f1d1d; color:#fca5a5; }
+      .qra-fbtn.fh.active    { background:#7c2d12; color:#fdba74; }
+      .qra-fbtn.fm.active    { background:#713f12; color:#fde047; }
+      .qra-fbtn.fl.active    { background:#14532d; color:#86efac; }
+      .qra-body { overflow-y: auto; padding: 14px 22px; flex: 1; }
+      .qra-table { width:100%; border-collapse:collapse; font-size:13px; color:#e2e8f0; }
+      .qra-table th {
+        text-align:left; padding:9px 11px; background:#1e293b;
+        color:#94a3b8; font-weight:600; border-bottom:1px solid #334155;
+        white-space:nowrap; position:sticky; top:0; z-index:1;
+      }
+      .qra-table td { padding:9px 11px; border-bottom:1px solid #1e293b; vertical-align:top; }
+      .qra-table tr:hover td { background:rgba(30,41,59,0.5); }
+      .qra-badge {
+        display:inline-block; padding:2px 9px; border-radius:9999px;
+        font-size:11px; font-weight:700; text-transform:uppercase;
+      }
+      .bc { background:#7f1d1d; color:#fca5a5; }
+      .bh { background:#7c2d12; color:#fdba74; }
+      .bm { background:#713f12; color:#fde047; }
+      .bl { background:#14532d; color:#86efac; }
+      .qra-sw { display:flex; align-items:center; gap:7px; min-width:120px; }
+      .qra-bar { flex:1; height:5px; background:#334155; border-radius:3px; overflow:hidden; }
+      .qra-bf { height:100%; border-radius:3px; }
+      .qra-sn { font-weight:700; font-size:13px; min-width:26px; text-align:right; }
+      .qra-il { list-style:none; margin:0; padding:0; }
+      .qra-il li { font-size:11px; color:#94a3b8; padding:1px 0; }
+      .qra-il li::before { content:"\2022 "; color:#475569; }
+      .qra-footer {
+        padding:10px 22px; border-top:1px solid #334155;
+        font-size:12px; color:#64748b;
+        display:flex; align-items:center; justify-content:space-between; flex-shrink:0;
+      }
+      .qra-loading { color:#64748b; font-size:13px; padding:40px; text-align:center; }
+      .ia-list { list-style:none; margin:0; padding:0; }
+      .ia-list li {
+        padding:9px 11px; border-bottom:1px solid #1e293b;
+        font-size:13px; color:#e2e8f0;
+      }
+      .ia-list li:hover { background:rgba(30,41,59,0.4); }
+      .ia-num { color:#475569; font-size:11px; margin-right:10px; }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+
+    <div id="cx-ov" class="qra-overlay">
+      <div class="qra-modal" id="cx-modal">
+        <div class="qra-modal-header">
+          <h2>Yuksek Karmasiklik Analizi</h2>
+          <button class="qra-close" id="cx-close">X</button>
+        </div>
+        <div class="qra-toolbar">
+          <button class="qra-fbtn fa active" id="fb-all">Tumu</button>
+          <button class="qra-fbtn fc" id="fb-critical">Critical</button>
+          <button class="qra-fbtn fh" id="fb-high">High</button>
+          <button class="qra-fbtn fm" id="fb-medium">Medium</button>
+          <button class="qra-fbtn fl" id="fb-low">Low</button>
+        </div>
+        <div class="qra-body">
+          <div id="cx-load" class="qra-loading">Yukleniyor...</div>
+          <table id="cx-tbl" class="qra-table" style="display:none;">
+            <thead><tr><th>#</th><th>Kural Adi</th><th>Skor</th><th>Sinif</th><th>Sorunlar</th></tr></thead>
+            <tbody id="cx-tb"></tbody>
+          </table>
+        </div>
+        <div class="qra-footer">
+          <span id="cx-ft">Yukleniyor...</span>
+          <span>Export XML bazli analiz</span>
+        </div>
+      </div>
+    </div>
+
+    <div id="ia-ov" class="qra-overlay">
+      <div class="qra-modal" id="ia-modal">
+        <div class="qra-modal-header">
+          <h2>90 Gundur Tetiklenmeyen Kurallar</h2>
+          <button class="qra-close" id="ia-close">X</button>
+        </div>
+        <div class="qra-body">
+          <div id="ia-load" class="qra-loading">Yukleniyor...</div>
+          <ul id="ia-lst" class="ia-list" style="display:none;"></ul>
+        </div>
+        <div class="qra-footer">
+          <span id="ia-ft">Yukleniyor...</span>
+          <span>Son 90 gun offense bazli analiz</span>
+        </div>
+      </div>
+    </div>
+
+    <script>
+    (function() {
+      var cxData = null;
+      var cxFilter = 'ALL';
+      var iaLoaded = false;
+
+      function sc(s) {
+        if (s >= 60) return '#ef4444';
+        if (s >= 40) return '#f97316';
+        if (s >= 20) return '#eab308';
+        return '#22c55e';
+      }
+      function bc(c) {
+        return {CRITICAL:'bc',HIGH:'bh',MEDIUM:'bm',LOW:'bl'}[c]||'bl';
+      }
+
+      function openModal(id) {
+        document.getElementById(id).classList.add('open');
+        document.body.style.overflow = 'hidden';
+      }
+      function closeModal(id) {
+        document.getElementById(id).classList.remove('open');
+        document.body.style.overflow = '';
+      }
+
+      document.getElementById('cx-close').onclick = function() { closeModal('cx-ov'); };
+      document.getElementById('ia-close').onclick = function() { closeModal('ia-ov'); };
+      document.getElementById('cx-ov').onclick = function(e) { if(e.target===this) closeModal('cx-ov'); };
+      document.getElementById('ia-ov').onclick = function(e) { if(e.target===this) closeModal('ia-ov'); };
+      document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') { closeModal('cx-ov'); closeModal('ia-ov'); }
+      });
+
+      var filterBtns = {
+        'ALL':      document.getElementById('fb-all'),
+        'CRITICAL': document.getElementById('fb-critical'),
+        'HIGH':     document.getElementById('fb-high'),
+        'MEDIUM':   document.getElementById('fb-medium'),
+        'LOW':      document.getElementById('fb-low')
+      };
+      Object.keys(filterBtns).forEach(function(k) {
+        filterBtns[k].onclick = function() {
+          cxFilter = k;
+          Object.keys(filterBtns).forEach(function(j) { filterBtns[j].classList.remove('active'); });
+          filterBtns[k].classList.add('active');
+          renderCx();
+        };
+      });
+
+      function loadCx() {
+        fetch('/api/rules/complexity')
+          .then(function(r) { return r.json(); })
+          .then(function(d) { cxData = d.rules || []; renderCx(); })
+          .catch(function(e) {
+            document.getElementById('cx-load').textContent = 'Hata: ' + e.message;
+          });
+      }
+
+      function renderCx() {
+        if (!cxData) return;
+        var filtered = cxFilter === 'ALL' ? cxData : cxData.filter(function(r) { return r.classification === cxFilter; });
+        var hc = cxData.filter(function(r) { return r.classification==='HIGH'||r.classification==='CRITICAL'; }).length;
+        document.getElementById('cx-ft').textContent = 'Toplam ' + cxData.length + ' kural — ' + hc + ' yuksek karmasiklik — gosterilen: ' + filtered.length;
+        document.getElementById('cx-load').style.display = 'none';
+        document.getElementById('cx-tbl').style.display = 'table';
+        var tb = document.getElementById('cx-tb');
+        tb.innerHTML = '';
+        filtered.forEach(function(r, i) {
+          var clr = sc(r.score);
+          var iss = (r.issues && r.issues.length)
+            ? '<ul class="qra-il">' + r.issues.map(function(x){return '<li>'+x+'</li>';}).join('') + '</ul>'
+            : '<span style="color:#475569;font-size:11px;">Sorun yok</span>';
+          var tr = document.createElement('tr');
+          tr.innerHTML =
+            '<td style="color:#64748b;font-size:11px;">'+(i+1)+'</td>'+
+            '<td style="max-width:260px;word-break:break-word;font-weight:500;">'+r.name+'</td>'+
+            '<td><div class="qra-sw"><div class="qra-bar"><div class="qra-bf" style="width:'+r.score+'%;background:'+clr+';"></div></div><span class="qra-sn" style="color:'+clr+';">'+r.score+'</span></div></td>'+
+            '<td><span class="qra-badge '+bc(r.classification)+'">'+r.classification+'</span></td>'+
+            '<td>'+iss+'</td>';
+          tb.appendChild(tr);
+        });
+      }
+
+      function openCx() {
+        openModal('cx-ov');
+        if (!cxData) loadCx();
+        else renderCx();
+      }
+
+      function loadIa() {
+        var ctrl = new AbortController();
+        var tid = setTimeout(function(){ ctrl.abort(); }, 120000);
+        fetch('/api/dashboard/inactive-rules', { signal: ctrl.signal })
+          .finally(function(){ clearTimeout(tid); })
+          .then(function(r) { return r.json(); })
+          .then(function(d) {
+            iaLoaded = true;
+            var rules = d.inactive_rules || [];
+            document.getElementById('ia-ft').textContent =
+              'Toplam ' + (d.total_sgm_rules||0) + ' SGM kurali — ' + (d.inactive_count||0) + ' tanesi 90 gundur tetiklenmemis';
+            document.getElementById('ia-load').style.display = 'none';
+            var lst = document.getElementById('ia-lst');
+            lst.style.display = 'block';
+            lst.innerHTML = '';
+            if (!rules.length) {
+              lst.innerHTML = '<li style="color:#64748b;">Inaktif kural bulunamadi.</li>';
+              return;
+            }
+            rules.forEach(function(name, i) {
+              var li = document.createElement('li');
+              li.innerHTML = '<span class="ia-num">'+(i+1)+'</span>'+name;
+              lst.appendChild(li);
+            });
+          })
+          .catch(function(e) {
+            document.getElementById('ia-load').textContent = 'Hata: ' + e.message;
+          });
+      }
+
+      function openIa() {
+        openModal('ia-ov');
+        if (!iaLoaded) loadIa();
+      }
+
+      function attach() {
+        var done = { cx: false, ia: false };
+        var attempts = 0;
+        var iv = setInterval(function() {
+          attempts++;
+          document.querySelectorAll('span.text-sm.text-gray-400').forEach(function(el) {
+            var txt = el.textContent.trim();
+            if (!done.cx && txt === 'Yuksek Karmasiklik') {
+              var card = el.parentElement && el.parentElement.parentElement;
+              if (card && !card.dataset.qra) {
+                card.style.cursor = 'pointer';
+                card.dataset.qra = 'cx';
+                card.addEventListener('click', openCx);
+                done.cx = true;
+              }
+            }
+            if (!done.ia && txt === 'Hic Tetiklenmemis') {
+              var card2 = el.parentElement && el.parentElement.parentElement;
+              if (card2 && !card2.dataset.qra) {
+                card2.style.cursor = 'pointer';
+                card2.dataset.qra = 'ia';
+                card2.addEventListener('click', openIa);
+                done.ia = true;
+              }
+            }
+          });
+          if ((done.cx && done.ia) || attempts > 80) clearInterval(iv);
+        }, 500);
+      }
+            window.openCxModal = openCx;
+      window.openIaModal = openIa;
+    })();
+    </script>
+  </body>
+</html>
